@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volleyball Rotation Visualizer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2937; }
+        .controls { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        button { border: 1px solid #2563eb; background: white; color: #2563eb; border-radius: 0.4rem; padding: 0.4rem 0.8rem; cursor: pointer; }
+        button.active { background: #2563eb; color: white; }
+        .legend { margin-top: 0.75rem; }
+        #court { background: #f8fafc; border: 2px solid #334155; border-radius: 0.4rem; }
+        .player-label { font-size: 12px; fill: #0f172a; }
+        .state-title { margin-bottom: 0.75rem; }
+    </style>
+</head>
+<body>
+    <h1>Volleyball Rotation Visualizer (5-1)</h1>
+    <p>One-side court view with serve, serve-receive, and post-first-touch positioning from both sides.</p>
+
+    <div class="controls" id="controls"></div>
+    <h2 class="state-title" id="stateTitle"></h2>
+
+    <svg id="court" width="620" height="320" role="img" aria-label="Volleyball half-court">
+        <rect x="10" y="10" width="600" height="300" fill="#dcfce7" stroke="#0f172a" stroke-width="2"></rect>
+        <line x1="310" y1="10" x2="310" y2="310" stroke="#0f172a" stroke-width="2"></line>
+        <line x1="10" y1="160" x2="610" y2="160" stroke="#0f172a" stroke-dasharray="5,5"></line>
+        <g id="players"></g>
+    </svg>
+
+    {{ rotation_states|json_script:"rotation-data" }}
+    {{ default_state|json_script:"default-state" }}
+
+    <script>
+        const rotationStates = JSON.parse(document.getElementById('rotation-data').textContent);
+        const defaultState = JSON.parse(document.getElementById('default-state').textContent);
+        const playersGroup = document.getElementById('players');
+        const stateTitle = document.getElementById('stateTitle');
+        const controls = document.getElementById('controls');
+
+        function drawState(stateKey) {
+            const state = rotationStates[stateKey];
+            stateTitle.textContent = state.label;
+            playersGroup.innerHTML = '';
+
+            state.players.forEach((player) => {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', player.x);
+                circle.setAttribute('cy', player.y);
+                circle.setAttribute('r', '18');
+                circle.setAttribute('fill', '#1d4ed8');
+                circle.setAttribute('stroke', '#1e3a8a');
+                circle.setAttribute('stroke-width', '2');
+
+                const number = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                number.setAttribute('x', player.x);
+                number.setAttribute('y', player.y + 5);
+                number.setAttribute('fill', 'white');
+                number.setAttribute('text-anchor', 'middle');
+                number.setAttribute('font-size', '14');
+                number.setAttribute('font-weight', 'bold');
+                number.textContent = player.number;
+
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', player.x);
+                label.setAttribute('y', player.y + 35);
+                label.setAttribute('text-anchor', 'middle');
+                label.setAttribute('class', 'player-label');
+                label.textContent = player.name;
+
+                playersGroup.appendChild(circle);
+                playersGroup.appendChild(number);
+                playersGroup.appendChild(label);
+            });
+
+            [...controls.querySelectorAll('button')].forEach((button) => {
+                button.classList.toggle('active', button.dataset.state === stateKey);
+            });
+        }
+
+        Object.entries(rotationStates).forEach(([key, value]) => {
+            const button = document.createElement('button');
+            button.textContent = value.label;
+            button.dataset.state = key;
+            button.addEventListener('click', () => drawState(key));
+            controls.appendChild(button);
+        });
+
+        drawState(defaultState);
+    </script>
+</body>
+</html>
