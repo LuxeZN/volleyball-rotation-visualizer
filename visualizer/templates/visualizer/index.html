@@ -48,19 +48,32 @@
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', player.x);
                 circle.setAttribute('cy', player.y);
-                circle.setAttribute('r', '18');
+                circle.setAttribute('r', '24');
                 circle.setAttribute('fill', '#1d4ed8');
                 circle.setAttribute('stroke', '#1e3a8a');
                 circle.setAttribute('stroke-width', '2');
 
-                const number = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                number.setAttribute('x', player.x);
-                number.setAttribute('y', player.y + 5);
-                number.setAttribute('fill', 'white');
-                number.setAttribute('text-anchor', 'middle');
-                number.setAttribute('font-size', '14');
-                number.setAttribute('font-weight', 'bold');
-                number.textContent = player.number;
+                const positionText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                positionText.setAttribute('x', player.x);
+                positionText.setAttribute('fill', 'white');
+                positionText.setAttribute('text-anchor', 'middle');
+                positionText.setAttribute('font-size', '9');
+                positionText.setAttribute('font-weight', 'bold');
+
+                const nameParts = player.name.split(' ');
+                if (nameParts.length === 1) {
+                    positionText.setAttribute('y', player.y + 3);
+                    positionText.textContent = player.name;
+                } else {
+                    positionText.setAttribute('y', player.y - 5);
+                    nameParts.forEach((part, index) => {
+                        const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                        tspan.setAttribute('x', player.x);
+                        tspan.setAttribute('dy', index === 0 ? '0' : '10');
+                        tspan.textContent = part;
+                        positionText.appendChild(tspan);
+                    });
+                }
 
                 const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 label.setAttribute('x', player.x);
@@ -70,7 +83,7 @@
                 label.textContent = player.name;
 
                 playersGroup.appendChild(circle);
-                playersGroup.appendChild(number);
+                playersGroup.appendChild(positionText);
                 playersGroup.appendChild(label);
             });
 
