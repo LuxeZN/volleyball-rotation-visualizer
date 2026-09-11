@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Volleyball Rotation Visualizer</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2937; }
-        .controls { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2937; display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .controls { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
         button { border: 1px solid #2563eb; background: white; color: #2563eb; border-radius: 0.4rem; padding: 0.4rem 0.8rem; cursor: pointer; }
         select { border: 1px solid #94a3b8; border-radius: 0.4rem; padding: 0.4rem 0.6rem; font-size: 0.95rem; }
         button.active { background: #2563eb; color: white; }
@@ -14,12 +14,12 @@
         .action-button:hover { background: #dcfce7; }
         .action-button:disabled { opacity: 0.55; cursor: not-allowed; }
         .legend { margin-top: 0.75rem; }
-        #court { background: #f8fafc; border: 2px solid #334155; border-radius: 0.4rem; }
+        #court { background: #f8fafc; border: 2px solid #334155; border-radius: 0.4rem; display: block; margin: 0 auto; }
         .player-label { font-size: 12px; fill: #0f172a; }
         .state-title { margin-bottom: 0.5rem; }
-        .actions { margin: 0.5rem 0 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .system-pick { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; }
-        .rotation-controls { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .actions { margin: 0.5rem 0 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: center; }
+        .system-pick { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; justify-content: center; }
+        .rotation-controls { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: center; }
         .rotation-pill { border: 1px solid #475569; border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.9rem; color: #334155; background: #f8fafc; }
         .legend { margin-top: 0.85rem; font-size: 0.92rem; color: #334155; }
         .legend ul { margin: 0.35rem 0 0; padding-left: 1.2rem; }
