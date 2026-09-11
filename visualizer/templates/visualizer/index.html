@@ -8,83 +8,208 @@
         body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2937; }
         .controls { margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
         button { border: 1px solid #2563eb; background: white; color: #2563eb; border-radius: 0.4rem; padding: 0.4rem 0.8rem; cursor: pointer; }
+        select { border: 1px solid #94a3b8; border-radius: 0.4rem; padding: 0.4rem 0.6rem; font-size: 0.95rem; }
         button.active { background: #2563eb; color: white; }
+        .action-button { border-color: #15803d; color: #15803d; }
+        .action-button:hover { background: #dcfce7; }
+        .action-button:disabled { opacity: 0.55; cursor: not-allowed; }
         .legend { margin-top: 0.75rem; }
         #court { background: #f8fafc; border: 2px solid #334155; border-radius: 0.4rem; }
         .player-label { font-size: 12px; fill: #0f172a; }
-        .state-title { margin-bottom: 0.75rem; }
+        .state-title { margin-bottom: 0.5rem; }
+        .actions { margin: 0.5rem 0 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .system-pick { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; }
+        .rotation-controls { margin-bottom: 0.75rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+        .rotation-pill { border: 1px solid #475569; border-radius: 999px; padding: 0.2rem 0.65rem; font-size: 0.9rem; color: #334155; background: #f8fafc; }
+        .legend { margin-top: 0.85rem; font-size: 0.92rem; color: #334155; }
+        .legend ul { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+        .ball-trail { fill: none; stroke: #f59e0b; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: 0.65; }
+        .player-trail { fill: none; stroke: #1d4ed8; stroke-width: 3; stroke-dasharray: 7 7; opacity: 0.35; }
+        @media (max-width: 760px) {
+            body { margin: 1rem; }
+            #court { width: 100%; height: auto; }
+            button { padding: 0.4rem 0.65rem; }
+        }
     </style>
 </head>
 <body>
-    <h1>Volleyball Rotation Visualizer (5-1)</h1>
+    <h1 id="pageTitle">Volleyball Rotation Visualizer</h1>
     <p>One-side court view with serve, serve-receive, and post-first-touch positioning from both sides.</p>
 
+    <div class="system-pick">
+        <label for="systemSelect">System:</label>
+        <select id="systemSelect"></select>
+    </div>
+
+    <div class="rotation-controls">
+        <button type="button" id="prevRotationBtn">Prev Rotation</button>
+        <span class="rotation-pill" id="rotationBadge">Rotation 1</span>
+        <button type="button" id="nextRotationBtn">Next Rotation</button>
+    </div>
+
     <div class="controls" id="controls"></div>
+    <div class="actions">
+        <button class="action-button" id="animateServeBtn" type="button">Animate Serve</button>
+        <button class="action-button" id="animateServeReceiveBtn" type="button">Animate Serve-Receive</button>
+        <button class="action-button" id="toggleAbbrevBtn" type="button">Use Abbreviations</button>
+    </div>
     <h2 class="state-title" id="stateTitle"></h2>
 
     <svg id="court" width="620" height="320" role="img" aria-label="Volleyball half-court">
-        <rect x="10" y="10" width="600" height="300" fill="#dcfce7" stroke="#0f172a" stroke-width="2"></rect>
-        <line x1="310" y1="10" x2="310" y2="310" stroke="#0f172a" stroke-width="2"></line>
-        <line x1="10" y1="160" x2="610" y2="160" stroke="#0f172a" stroke-dasharray="5,5"></line>
+        <rect x="10" y="35" width="600" height="275" fill="#dcfce7" stroke="#0f172a" stroke-width="2"></rect>
+        <line x1="10" y1="35" x2="610" y2="35" stroke="#0f172a" stroke-width="3"></line>
+        <line x1="310" y1="35" x2="310" y2="310" stroke="#0f172a" stroke-width="2"></line>
+        <line x1="10" y1="170" x2="610" y2="170" stroke="#0f172a" stroke-dasharray="5,5"></line>
+        <g id="trails"></g>
         <g id="players"></g>
+        <circle id="ball" cx="-100" cy="-100" r="9" fill="#f59e0b" stroke="#b45309" stroke-width="2" visibility="hidden"></circle>
     </svg>
 
-    {{ rotation_states|json_script:"rotation-data" }}
+    <div class="legend" id="legend" hidden>
+        <strong>Abbreviations</strong>
+        <ul>
+            <li>S = Setter</li>
+            <li>OPP = Opposite</li>
+            <li>MB = Middle Blocker</li>
+            <li>OH = Outside Hitter</li>
+        </ul>
+    </div>
+
+    {{ rotation_systems|json_script:"rotation-systems" }}
+    {{ default_system|json_script:"default-system" }}
+    {{ default_rotation|json_script:"default-rotation" }}
     {{ default_state|json_script:"default-state" }}
 
     <script>
-        const rotationStates = JSON.parse(document.getElementById('rotation-data').textContent);
+        const rotationSystems = JSON.parse(document.getElementById('rotation-systems').textContent);
+        const defaultSystem = JSON.parse(document.getElementById('default-system').textContent);
+        const defaultRotation = JSON.parse(document.getElementById('default-rotation').textContent);
         const defaultState = JSON.parse(document.getElementById('default-state').textContent);
+        const pageTitle = document.getElementById('pageTitle');
+        const systemSelect = document.getElementById('systemSelect');
+        const prevRotationBtn = document.getElementById('prevRotationBtn');
+        const nextRotationBtn = document.getElementById('nextRotationBtn');
+        const rotationBadge = document.getElementById('rotationBadge');
         const playersGroup = document.getElementById('players');
         const stateTitle = document.getElementById('stateTitle');
         const controls = document.getElementById('controls');
+        const trails = document.getElementById('trails');
+        const ball = document.getElementById('ball');
+        const legend = document.getElementById('legend');
+        const animateServeBtn = document.getElementById('animateServeBtn');
+        const animateServeReceiveBtn = document.getElementById('animateServeReceiveBtn');
+        const toggleAbbrevBtn = document.getElementById('toggleAbbrevBtn');
+        const animationButtons = [animateServeBtn, animateServeReceiveBtn, prevRotationBtn, nextRotationBtn, toggleAbbrevBtn];
+
+        let currentSystemKey = defaultSystem;
+        let currentRotationIndex = 0;
+        let currentStateKey = defaultState;
+        let isAnimating = false;
+        let useAbbreviations = false;
+        let ballTrail = [];
+        let ballTrailNode = null;
+
+        function getCurrentRotations() {
+            return rotationSystems[currentSystemKey].rotations;
+        }
+
+        function getCurrentRotation() {
+            const rotations = getCurrentRotations();
+            return rotations[currentRotationIndex];
+        }
+
+        function getCurrentStates() {
+            return getCurrentRotation().states;
+        }
+
+        function getPositionText(playerName) {
+            if (!useAbbreviations) {
+                return playerName;
+            }
+
+            if (playerName.startsWith('Setter')) {
+                return playerName.replace('Setter', 'S');
+            }
+
+            if (playerName.startsWith('Opposite')) {
+                return playerName.replace('Opposite', 'OPP');
+            }
+
+            if (playerName.startsWith('Middle')) {
+                return playerName.replace('Middle', 'MB');
+            }
+
+            if (playerName.startsWith('Outside')) {
+                return playerName.replace('Outside', 'OH');
+            }
+
+            return playerName;
+        }
+
+        function drawPlayerAt(player, x, y) {
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('cx', x);
+            circle.setAttribute('cy', y);
+            circle.setAttribute('r', '24');
+            circle.setAttribute('fill', '#1d4ed8');
+            circle.setAttribute('stroke', '#1e3a8a');
+            circle.setAttribute('stroke-width', '2');
+
+            const positionText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            positionText.setAttribute('x', x);
+            positionText.setAttribute('fill', 'white');
+            positionText.setAttribute('text-anchor', 'middle');
+            positionText.setAttribute('font-size', '9');
+            positionText.setAttribute('font-weight', 'bold');
+
+            const displayName = getPositionText(player.name);
+            const nameParts = displayName.split(' ');
+            if (nameParts.length === 1) {
+                positionText.setAttribute('y', y + 3);
+                positionText.textContent = displayName;
+            } else {
+                positionText.setAttribute('y', y - 5);
+                nameParts.forEach((part, index) => {
+                    const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.setAttribute('x', x);
+                    tspan.setAttribute('dy', index === 0 ? '0' : '10');
+                    tspan.textContent = part;
+                    positionText.appendChild(tspan);
+                });
+            }
+
+            playersGroup.appendChild(circle);
+            playersGroup.appendChild(positionText);
+        }
+
+        function renderPlayerFormation(players) {
+            playersGroup.innerHTML = '';
+            players.forEach((player) => {
+                drawPlayerAt(player, player.x, player.y);
+            });
+        }
 
         function drawState(stateKey) {
-            const state = rotationStates[stateKey];
-            stateTitle.textContent = state.label;
+            const state = getCurrentStates()[stateKey];
+            if (!state) {
+                return;
+            }
+
+            if (!isAnimating) {
+                hideBall();
+                clearTrails();
+            }
+
+            currentStateKey = stateKey;
+            const systemLabel = rotationSystems[currentSystemKey].label;
+            const rotation = getCurrentRotation();
+            pageTitle.textContent = `Volleyball Rotation Visualizer (${systemLabel})`;
+            stateTitle.textContent = `${state.label} - ${systemLabel} - ${rotation.label}`;
+            rotationBadge.textContent = rotation.label;
             playersGroup.innerHTML = '';
 
             state.players.forEach((player) => {
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', player.x);
-                circle.setAttribute('cy', player.y);
-                circle.setAttribute('r', '24');
-                circle.setAttribute('fill', '#1d4ed8');
-                circle.setAttribute('stroke', '#1e3a8a');
-                circle.setAttribute('stroke-width', '2');
-
-                const positionText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                positionText.setAttribute('x', player.x);
-                positionText.setAttribute('fill', 'white');
-                positionText.setAttribute('text-anchor', 'middle');
-                positionText.setAttribute('font-size', '9');
-                positionText.setAttribute('font-weight', 'bold');
-
-                const nameParts = player.name.split(' ');
-                if (nameParts.length === 1) {
-                    positionText.setAttribute('y', player.y + 3);
-                    positionText.textContent = player.name;
-                } else {
-                    positionText.setAttribute('y', player.y - 5);
-                    nameParts.forEach((part, index) => {
-                        const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                        tspan.setAttribute('x', player.x);
-                        tspan.setAttribute('dy', index === 0 ? '0' : '10');
-                        tspan.textContent = part;
-                        positionText.appendChild(tspan);
-                    });
-                }
-
-                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                label.setAttribute('x', player.x);
-                label.setAttribute('y', player.y + 35);
-                label.setAttribute('text-anchor', 'middle');
-                label.setAttribute('class', 'player-label');
-                label.textContent = player.name;
-
-                playersGroup.appendChild(circle);
-                playersGroup.appendChild(positionText);
-                playersGroup.appendChild(label);
+                drawPlayerAt(player, player.x, player.y);
             });
 
             [...controls.querySelectorAll('button')].forEach((button) => {
@@ -92,15 +217,334 @@
             });
         }
 
-        Object.entries(rotationStates).forEach(([key, value]) => {
-            const button = document.createElement('button');
-            button.textContent = value.label;
-            button.dataset.state = key;
-            button.addEventListener('click', () => drawState(key));
-            controls.appendChild(button);
+        function setAnimationButtonsDisabled(disabled) {
+            animationButtons.forEach((button) => {
+                button.disabled = disabled;
+            });
+        }
+
+        function hideBall() {
+            ball.setAttribute('visibility', 'hidden');
+            ball.setAttribute('cx', '-100');
+            ball.setAttribute('cy', '-100');
+        }
+
+        function clearTrails() {
+            trails.innerHTML = '';
+            ballTrail = [];
+            ballTrailNode = null;
+        }
+
+        function ensureBallTrailNode() {
+            if (ballTrailNode) {
+                return;
+            }
+
+            ballTrailNode = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+            ballTrailNode.setAttribute('class', 'ball-trail');
+            trails.appendChild(ballTrailNode);
+        }
+
+        function addBallTrailPoint(x, y) {
+            ballTrail.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+            ensureBallTrailNode();
+            ballTrailNode.setAttribute('points', ballTrail.join(' '));
+        }
+
+        function drawPlayerTrails(fromPlayers, toPlayers) {
+            const fromByName = Object.fromEntries(fromPlayers.map((p) => [p.name, p]));
+            toPlayers.forEach((targetPlayer) => {
+                const startPlayer = fromByName[targetPlayer.name] || targetPlayer;
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', startPlayer.x);
+                line.setAttribute('y1', startPlayer.y);
+                line.setAttribute('x2', targetPlayer.x);
+                line.setAttribute('y2', targetPlayer.y);
+                line.setAttribute('class', 'player-trail');
+                trails.appendChild(line);
+            });
+        }
+
+        function getSetterName(players) {
+            const setter = players.find((player) => player.name.startsWith('Setter'));
+            return setter ? setter.name : players[0].name;
+        }
+
+        function getSetterPlayer(players) {
+            const setterName = getSetterName(players);
+            return players.find((player) => player.name === setterName) || players[0];
+        }
+
+        function getBackRowPasser(players) {
+            const setterName = getSetterName(players);
+            return [...players]
+                .filter((player) => player.name !== setterName)
+                .sort((left, right) => right.y - left.y)[0] || players[0];
+        }
+
+        function getFrontRowPlayers(players) {
+            return [...players]
+                .sort((left, right) => left.y - right.y)
+                .slice(0, 3);
+        }
+
+        function pickAttackTarget(players) {
+            const frontRow = getFrontRowPlayers(players);
+            const preferredNames = ['Outside 1', 'Outside A', 'Opposite', 'Opposite A', 'Middle 1'];
+
+            for (const preferredName of preferredNames) {
+                const match = frontRow.find((player) => player.name === preferredName);
+                if (match) {
+                    return match;
+                }
+            }
+
+            return frontRow[0] || players[0];
+        }
+
+        function buildServeReceiveReadyPlayers(players) {
+            const setterName = getSetterName(players);
+            const frontRowNames = new Set(getFrontRowPlayers(players).map((player) => player.name));
+            const setterSpot = { x: 325, y: 108 };
+
+            return players.map((player) => {
+                if (player.name === setterName) {
+                    return {
+                        ...player,
+                        x: setterSpot.x,
+                        y: setterSpot.y,
+                    };
+                }
+
+                if (frontRowNames.has(player.name)) {
+                    return {
+                        ...player,
+                        y: player.y + 22,
+                    };
+                }
+
+                return player;
+            });
+        }
+
+        function animatePlayersToTargets(fromPlayers, toPlayers, duration) {
+            return new Promise((resolve) => {
+                const fromByName = Object.fromEntries(fromPlayers.map((player) => [player.name, player]));
+                const startTime = performance.now();
+
+                drawPlayerTrails(fromPlayers, toPlayers);
+
+                function frame(now) {
+                    const progress = Math.min((now - startTime) / duration, 1);
+                    const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
+
+                    playersGroup.innerHTML = '';
+
+                    toPlayers.forEach((targetPlayer) => {
+                        const startPlayer = fromByName[targetPlayer.name] || targetPlayer;
+                        const x = startPlayer.x + (targetPlayer.x - startPlayer.x) * eased;
+                        const y = startPlayer.y + (targetPlayer.y - startPlayer.y) * eased;
+                        drawPlayerAt(targetPlayer, x.toFixed(2), y.toFixed(2));
+                    });
+
+                    if (progress < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        resolve();
+                    }
+                }
+
+                requestAnimationFrame(frame);
+            });
+        }
+
+        function animateBallPath(start, end, duration, resetTrail = false) {
+            return new Promise((resolve) => {
+                const startTime = performance.now();
+                ball.setAttribute('visibility', 'visible');
+                const peakLift = Math.max(26, Math.abs(end.x - start.x) * 0.08);
+
+                if (resetTrail) {
+                    clearTrails();
+                }
+                addBallTrailPoint(start.x, start.y);
+
+                function frame(now) {
+                    const progress = Math.min((now - startTime) / duration, 1);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const x = start.x + (end.x - start.x) * eased;
+                    const baseY = start.y + (end.y - start.y) * eased;
+                    const arc = 4 * eased * (1 - eased) * peakLift;
+                    const y = baseY - arc;
+                    ball.setAttribute('cx', x.toFixed(2));
+                    ball.setAttribute('cy', y.toFixed(2));
+                    addBallTrailPoint(x, y);
+
+                    if (progress < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        resolve();
+                    }
+                }
+
+                requestAnimationFrame(frame);
+            });
+        }
+
+        function animatePlayerTransition(fromKey, toKey, duration) {
+            return new Promise((resolve) => {
+                const states = getCurrentStates();
+                const fromPlayers = states[fromKey].players;
+                const toPlayers = states[toKey].players;
+                const fromByName = Object.fromEntries(fromPlayers.map((p) => [p.name, p]));
+                const startTime = performance.now();
+
+                drawPlayerTrails(fromPlayers, toPlayers);
+
+                function frame(now) {
+                    const progress = Math.min((now - startTime) / duration, 1);
+                    const eased = 0.5 - Math.cos(progress * Math.PI) / 2;
+
+                    playersGroup.innerHTML = '';
+
+                    toPlayers.forEach((targetPlayer) => {
+                        const startPlayer = fromByName[targetPlayer.name] || targetPlayer;
+                        const x = startPlayer.x + (targetPlayer.x - startPlayer.x) * eased;
+                        const y = startPlayer.y + (targetPlayer.y - startPlayer.y) * eased;
+                        drawPlayerAt(targetPlayer, x.toFixed(2), y.toFixed(2));
+                    });
+
+                    if (progress < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        resolve();
+                    }
+                }
+
+                requestAnimationFrame(frame);
+            });
+        }
+
+        async function runServeAnimation() {
+            if (isAnimating) {
+                return;
+            }
+
+            isAnimating = true;
+            setAnimationButtonsDisabled(true);
+
+            try {
+                const states = getCurrentStates();
+                const animation = getCurrentRotation().animation || {};
+                drawState('serve');
+                const server = states.serve.players.find((p) => p.number === 1) || states.serve.players[0];
+                const serveTarget = animation.serve_target || { x: 130, y: 22 };
+
+                await animateBallPath({ x: server.x, y: server.y }, serveTarget, 1200, true);
+                await animatePlayerTransition('serve', 'first_touch_them', 900);
+                drawState('first_touch_them');
+                hideBall();
+            } finally {
+                isAnimating = false;
+                setAnimationButtonsDisabled(false);
+            }
+        }
+
+        async function runServeReceiveAnimation() {
+            if (isAnimating) {
+                return;
+            }
+
+            isAnimating = true;
+            setAnimationButtonsDisabled(true);
+
+            try {
+                const states = getCurrentStates();
+                const animation = getCurrentRotation().animation || {};
+                drawState('serve_receive');
+                const opponentServeOrigin = animation.receive_origin || { x: 525, y: 22 };
+                const passer = getBackRowPasser(states.serve_receive.players);
+                const setter = getSetterPlayer(states.serve_receive.players);
+                const readyPlayers = buildServeReceiveReadyPlayers(states.serve_receive.players);
+                const readySetter = readyPlayers.find((player) => player.name === setter.name) || setter;
+                const attackTarget = pickAttackTarget(readyPlayers);
+
+                await animateBallPath(opponentServeOrigin, { x: passer.x, y: passer.y }, 1200, true);
+                await Promise.all([
+                    animateBallPath({ x: passer.x, y: passer.y }, { x: readySetter.x, y: readySetter.y }, 900, false),
+                    animatePlayersToTargets(states.serve_receive.players, readyPlayers, 900),
+                ]);
+                renderPlayerFormation(readyPlayers);
+                await animateBallPath({ x: readySetter.x, y: readySetter.y }, { x: attackTarget.x, y: attackTarget.y }, 900, false);
+                hideBall();
+            } finally {
+                isAnimating = false;
+                setAnimationButtonsDisabled(false);
+            }
+        }
+
+        function renderStateButtons() {
+            controls.innerHTML = '';
+            const states = getCurrentStates();
+
+            Object.entries(states).forEach(([key, value]) => {
+                const button = document.createElement('button');
+                button.textContent = value.label;
+                button.dataset.state = key;
+                button.addEventListener('click', () => drawState(key));
+                controls.appendChild(button);
+            });
+        }
+
+        function setRotationByIndex(index) {
+            const rotations = getCurrentRotations();
+            if (!rotations.length) {
+                return;
+            }
+
+            currentRotationIndex = ((index % rotations.length) + rotations.length) % rotations.length;
+            hideBall();
+            clearTrails();
+            renderStateButtons();
+            drawState(defaultState);
+        }
+
+        function changeRotation(direction) {
+            setRotationByIndex(currentRotationIndex + direction);
+        }
+
+        function setSystem(systemKey) {
+            currentSystemKey = systemKey;
+            const rotations = getCurrentRotations();
+            const defaultIndex = rotations.findIndex((rotation) => rotation.key === defaultRotation);
+            setRotationByIndex(defaultIndex >= 0 ? defaultIndex : 0);
+        }
+
+        Object.entries(rotationSystems).forEach(([key, value]) => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = value.label;
+            systemSelect.appendChild(option);
         });
 
-        drawState(defaultState);
+        systemSelect.value = defaultSystem;
+        systemSelect.addEventListener('change', (event) => {
+            setSystem(event.target.value);
+        });
+
+        prevRotationBtn.addEventListener('click', () => changeRotation(-1));
+        nextRotationBtn.addEventListener('click', () => changeRotation(1));
+
+        animateServeBtn.addEventListener('click', runServeAnimation);
+        animateServeReceiveBtn.addEventListener('click', runServeReceiveAnimation);
+        toggleAbbrevBtn.addEventListener('click', () => {
+            useAbbreviations = !useAbbreviations;
+            toggleAbbrevBtn.textContent = useAbbreviations ? 'Show Full Names' : 'Use Abbreviations';
+            legend.hidden = !useAbbreviations;
+            drawState(currentStateKey);
+        });
+
+        setSystem(defaultSystem);
     </script>
 </body>
 </html>
